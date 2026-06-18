@@ -1,0 +1,21 @@
+# Binaries
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go
+*.test
+*.out
+vendor/
+
+# Build / IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Local config / state
+*.local
+.env
