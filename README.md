@@ -2,7 +2,7 @@
 
 > Unified storage for the exabyte era — block, file, and object on one DASE platform.
 
-OmniStor 是一个面向 EB 级规模的统一存储系统，灵感来自 Vastdata 的统一存储与 vastbox DASE（Disaggregated Shared-Everything）架构。它在一套通用 X86 集群上同时提供**块存储、文件存储、对象存储**三种协议，并通过多级介质分层（SCM SSD + QLC SSD，或 TLC SSD + HDD）在成本与性能之间取得平衡。
+OmniStor 是一个面向 EB 级规模的统一存储系统，灵感来自 Vastdata 的统一存储与 vastbox DASE（Disaggregated Shared-Everything）架构。它在一套通用 X86 集群上同时提供**块存储、文件存储、对象存储**三种协议，并通过多级介质分层（SCM SSD + QLC SSD、纯 TLC SSD，或 TLC SSD + HDD）在成本与性能之间取得平衡。
 
 ## 核心定位
 
@@ -10,7 +10,7 @@ OmniStor 是一个面向 EB 级规模的统一存储系统，灵感来自 Vastda
 | --- | --- |
 | 协议 | 块（iSCSI/NVMe-oF）、文件（NFS，复用 Vastdata NFS 方案）、对象（S3） |
 | 硬件 | 通用 X86 服务器，ebox 方案（标准高密度机箱） |
-| 介质分层 | SCM SSD + QLC SSD，或 TLC SSD + HDD |
+| 介质分层 | SCM SSD + QLC SSD、纯 TLC SSD，或 TLC SSD + HDD |
 | 软件架构 | DASE（Disaggregated Shared-Everything，解耦共享一切） |
 | 规模 | 万亿（10¹²）级对象数量，单集群 1 EiB 容量 |
 | QoS | Metadata IOPS、Data IOPS、Data BW 三维限速 |
