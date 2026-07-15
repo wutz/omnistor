@@ -19,6 +19,7 @@ OmniStor 没有独立的"元数据服务器"层：元数据被切分为大量 **
 - **Bucket 是元数据的分片单元与处理单元**：每个 Bucket 是一个独立的轻量进程（或协程组），拥有命名空间的一个哈希分片——包括其中的 inode、目录项、extent 映射、对象索引。
 - 集群启动时即创建远多于节点数的 Bucket（数千到数十万个，按目标规模），Bucket 数量决定元数据并行度上限；冷 Bucket 可休眠换出，仅保留共享池中的持久化状态，被访问时秒级唤醒。
 - 目录、inode、对象 key 通过**一致性哈希**映射到 Bucket；超大目录按目录内前缀二次切分，跨多个 Bucket 承载，避免热点目录成为单 Bucket 瓶颈。
+- 多租户场景下，租户 ID 是所有元数据键的最高位前缀：一个 Bucket 同时服务多个租户的分片，靠键前缀严格隔离，不引入额外的元数据层（见 [multitenancy.md](../features/multitenancy.md)）。
 
 ```
                  hash(inode / dirent / object-key)

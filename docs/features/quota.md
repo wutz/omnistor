@@ -1,6 +1,6 @@
 # Quota（配额）
 
-OmniStor 支持多级配额，硬约束资源使用上限，超限拒绝写入。
+OmniStor 支持多级配额，硬约束资源使用上限，超限拒绝写入。租户配额由集群管理员设定，租户内子配额由租户管理员自助管理（见 [multitenancy.md](multitenancy.md)）。
 
 ## 配额维度
 

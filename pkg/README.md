@@ -11,6 +11,7 @@ OmniStor 核心库，供各服务复用。
 | `placement` | 介质感知放置、池间均衡与迁移决策 |
 | `qos` | 令牌桶、分布式限速 |
 | `quota` | 配额计数与校验 |
+| `tenant` | 租户生命周期、认证对接、VIP 池、密钥管理 |
 | `access/nfs` | NFS 协议前端 |
 | `access/s3` | S3 兼容前端 |
 | `access/block` | iSCSI/NVMe-oF 前端 |
