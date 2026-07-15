@@ -1,6 +1,6 @@
 # 架构总览
 
-OmniStor 融合两家系统的精华：**核心架构采用 VastData 的 DASE（Disaggregated Shared-Everything）**——无状态计算节点通过 NVMe-oF 共享全部存储介质；**元数据设计完全参考 WekaFS**——元数据切分为大量 Bucket，分布到集群所有 TLC NVMe SSD 上并行处理。
+OmniStor 的核心架构采用 **DASE（Disaggregated Shared-Everything）**——无状态计算节点通过 NVMe-oF 共享全部存储介质；元数据切分为大量 **Bucket**，分布到集群所有 TLC NVMe SSD 上并行处理。
 
 ## 逻辑分层
 
@@ -11,7 +11,7 @@ OmniStor 融合两家系统的精华：**核心架构采用 VastData 的 DASE（
 │  │ Access Layer (协议前端)                              │ │
 │  │  NFS (文件) · S3 (对象) · iSCSI/NVMe-oF (块)         │ │
 │  ├─────────────────────────────────────────────────────┤ │
-│  │ Metadata Buckets（WekaFS 风格分片，见 metadata.md）   │ │
+│  │ Metadata Buckets（哈希分片，见 metadata.md）          │ │
 │  │  inode / 目录树 / 对象索引 · B-tree · Metadata QoS   │ │
 │  ├─────────────────────────────────────────────────────┤ │
 │  │ Data Services（纠删 / 放置 / 分层迁移）               │ │
@@ -29,14 +29,14 @@ OmniStor 融合两家系统的精华：**核心架构采用 VastData 的 DASE（
                 └───────────────────┘
 ```
 
-## 两大设计来源
+## 两大架构支柱
 
-| 来源 | OmniStor 采纳的部分 |
+| 支柱 | 内容 |
 | --- | --- |
-| **VastData DASE** | 计算/存储解耦；全部 SSD 经 NVMe-oF 全局共享；无状态 CNode；ebox 硬件方案 |
-| **WekaFS** | 元数据 Bucket 分片模型；元数据分布到所有 NVMe SSD；无专用元数据节点；元数据容量随使用量增长 |
+| **DASE 共享存储** | 计算/存储解耦；全部 SSD 经 NVMe-oF 全局共享；无状态 CNode；ebox 硬件方案 |
+| **Bucket 分片元数据** | 元数据按哈希切分为大量 Bucket；分布到所有 NVMe SSD；无专用元数据节点；容量随使用量增长 |
 
-融合点：Bucket 的持久化状态放在 DASE 共享池而非本地盘，因此 Bucket failover 无需数据迁移或多副本状态机——这是两者结合产生的增益，详见 [metadata.md](metadata.md)。
+结合点：Bucket 的持久化状态放在 DASE 共享池而非本地盘，因此 Bucket failover 无需数据迁移或多副本状态机——详见 [metadata.md](metadata.md)。
 
 ## 关键特性落点
 
@@ -53,6 +53,6 @@ OmniStor 融合两家系统的精华：**核心架构采用 VastData 的 DASE（
 ## 相关文档
 
 - [DASE 详解](dase.md)
-- [元数据设计（WekaFS 风格）](metadata.md)
+- [元数据设计（Bucket 分片）](metadata.md)
 - [硬件方案与 ebox](hardware.md)
 - [集群拓扑与容量规模](topology.md)

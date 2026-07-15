@@ -1,14 +1,14 @@
 # DASE 架构（Disaggregated Shared-Everything）
 
-DASE = Disaggregated Shared-Everything（解耦共享一切），源自 VastData 的核心架构思想。OmniStor 以 DASE 为骨架，并在其上运行 WekaFS 风格的元数据 Bucket（见 [metadata.md](metadata.md)）。
+DASE = Disaggregated Shared-Everything（解耦共享一切），是 OmniStor 的核心架构骨架，其上运行 Bucket 分片元数据（见 [metadata.md](metadata.md)）。
 
 ## 与传统架构对比
 
-| 架构 | 计算与存储 | 介质可见性 | 扩展瓶颈 | 代表 |
-| --- | --- | --- | --- | --- |
-| 传统 Scale-up | 耦合 | 本机 | 单点 | 双控阵列 |
-| Scale-out (shared-nothing) | 耦合 | 本机，跨节点靠副本/纠删 | 节点间重建放大 | WekaFS、Ceph |
-| **DASE (OmniStor)** | **解耦** | **任意 CNode 可见任意 SSD** | **近乎线性** | VastData |
+| 架构 | 计算与存储 | 介质可见性 | 扩展瓶颈 |
+| --- | --- | --- | --- |
+| 传统 Scale-up（双控阵列） | 耦合 | 本机 | 单点 |
+| Scale-out (shared-nothing) | 耦合 | 本机，跨节点靠副本/纠删 | 节点间重建放大 |
+| **DASE (OmniStor)** | **解耦** | **任意 CNode 可见任意 SSD** | **近乎线性** |
 
 ## 解耦（Disaggregated）
 
