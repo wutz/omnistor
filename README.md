@@ -34,17 +34,33 @@ OmniStor 是一个面向 EB 级规模的统一存储系统：核心架构采用 
 ```
 omnistor/
 ├── docs/
-│   ├── architecture/   # DASE、元数据(Bucket)、硬件、拓扑
+│   ├── architecture/   # DASE、元数据(Bucket)、分池、硬件、拓扑
 │   ├── storage/        # 块/文件/对象三种协议设计
-│   └── features/       # QoS、Quota、分层存储
+│   └── features/       # QoS、Quota、分层存储、多租户
+├── crates/             # Rust workspace（核心实现）
+│   ├── omnistor-core/        # 基础类型：ID、介质类别、租户前缀键
+│   ├── omnistor-qos/         # 三维令牌桶、分片限速、后台低优先级
+│   ├── omnistor-quota/       # 两级配额（租户 → 桶/卷/目录）
+│   ├── omnistor-tenant/      # 租户生命周期、密钥、密码学擦除
+│   ├── omnistor-metadata/    # Bucket 分片、journal、租约围栏、extent 分配
+│   ├── omnistor-placement/   # 分池放置、池间均衡、温度分层
+│   └── omnistor/             # 顶层组装与端到端写路径
 ├── api/                # 接口定义 (gRPC / REST / proto)
 ├── cmd/                # 各服务入口
-├── pkg/                # 核心库
 └── deploy/             # 部署编排 (裸金属 / k8s / compose)
 ```
 
 详见 [docs/architecture/overview.md](docs/architecture/overview.md)。
 
+## 构建与测试
+
+```sh
+cargo test --workspace      # 全部单元 + 集成测试
+cargo clippy --workspace    # lint
+cargo fmt --all --check     # 格式
+```
+
 ## 状态
 
-🚧 设计阶段（design phase）— 当前仓库包含架构设计与接口骨架，尚无可运行代码。
+🚧 设计 + 原型阶段 — 架构文档齐备；`crates/` 内为核心机制的 Rust 原型实现
+（Bucket 元数据、QoS/Quota、租户、分池放置），单机内存模型，尚无网络与持久化 I/O。

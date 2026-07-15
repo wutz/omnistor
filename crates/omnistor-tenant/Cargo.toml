@@ -1,0 +1,11 @@
+[package]
+name = "omnistor-tenant"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+omnistor-core = { path = "../omnistor-core" }
+
+[lints]
+workspace = true
