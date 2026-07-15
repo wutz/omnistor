@@ -10,7 +10,7 @@ OmniStor 是一个面向 EB 级规模的统一存储系统：核心架构采用 
 | --- | --- |
 | 协议 | 块（iSCSI/NVMe-oF）、文件（NFS）、对象（S3） |
 | 软件架构 | DASE 骨架 × Bucket 分片元数据 |
-| 硬件 | 无状态 CNode + ebox 存储机箱，NVMe-oF 全互联 |
+| 硬件 | 通用 x86 服务器（无状态 CNode + SNode 存储节点），NVMe-oF 全互联 |
 | 主存储层 | TLC NVMe SSD：元数据与数据同池，容量动态分配 |
 | 分层存储 | 可选下沉到 QLC NVMe / HDD / 外部对象存储（S3） |
 | 规模 | 10 万亿（10¹³）级对象数量，单集群 10 EiB 容量 |
@@ -36,7 +36,7 @@ omnistor/
 ├── api/                # 接口定义 (gRPC / REST / proto)
 ├── cmd/                # 各服务入口
 ├── pkg/                # 核心库
-└── deploy/             # 部署编排 (ebox / k8s / compose)
+└── deploy/             # 部署编排 (裸金属 / k8s / compose)
 ```
 
 详见 [docs/architecture/overview.md](docs/architecture/overview.md)。
