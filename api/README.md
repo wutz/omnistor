@@ -6,7 +6,6 @@ OmniStor 内部接口定义层。
 
 - `proto/` — gRPC 接口定义（Metadata API、Data API、Admin API）
 - `openapi/` — S3 兼容 REST 规范与扩展
-- `go/` — 由 proto 生成的 Go 客户端/服务端桩
 
 ## 接口分组
 

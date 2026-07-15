@@ -5,11 +5,6 @@ bin/
 *.so
 *.dylib
 
-# Go
-*.test
-*.out
-vendor/
-
 # Build / IDE
 .idea/
 .vscode/

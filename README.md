@@ -47,7 +47,6 @@ omnistor/
 │   ├── omnistor/             # 顶层组装与端到端写路径
 │   └── omnistor-console/     # 管理控台：REST API + Web 前端（集群/租户两视图）
 ├── api/                # 接口定义 (gRPC / REST / proto)
-├── cmd/                # 各服务入口
 └── deploy/             # 部署编排 (裸金属 / k8s / compose)
 ```
 
