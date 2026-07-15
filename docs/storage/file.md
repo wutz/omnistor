@@ -5,7 +5,7 @@ OmniStor 的文件存储**复用 Vastdata 的 NFS 方案**：直接采用其 NFS
 ## 设计
 
 - **NFS 前端**：复用 Vastdata NFS 服务（NFSv3/NFSv4.x），作为 Access Layer 的文件协议入口。
-- **POSIX 语义**：目录树、inode、权限由 Metadata 层提供，NFS 前端做协议翻译。
+- **POSIX 语义**：目录树、inode、权限由元数据 Bucket 提供（见 [metadata.md](../architecture/metadata.md)），NFS 前端做协议翻译。
 - **数据路径**：文件数据切分为对象，走与对象存储相同的数据放置与分层。
 - **共享一切**：多个 NFS 前端共享同一命名空间，任意前端可服务任意路径。
 

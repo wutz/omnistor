@@ -2,35 +2,37 @@
 
 > Unified storage for the exabyte era — block, file, and object on one DASE platform.
 
-OmniStor 是一个面向 EB 级规模的统一存储系统，灵感来自 Vastdata 的统一存储与 vastbox DASE（Disaggregated Shared-Everything）架构。它在一套通用 X86 集群上同时提供**块存储、文件存储、对象存储**三种协议，并通过多级介质分层（SCM SSD + QLC SSD、纯 TLC SSD，或 TLC SSD + HDD）在成本与性能之间取得平衡。
+OmniStor 是一个面向 EB 级规模的统一存储系统，**融合 VastData 与 WekaFS 两家的设计精华**：核心架构采用 VastData 的 DASE（Disaggregated Shared-Everything）——无状态计算节点经 NVMe-oF 共享全部存储介质；元数据设计完全参考 WekaFS——切分为大量 Bucket 分布到所有 TLC NVMe SSD 并行处理。它在一套通用 X86 集群上同时提供**块存储、文件存储、对象存储**三种协议。
 
 ## 核心定位
 
 | 维度 | 目标 |
 | --- | --- |
-| 协议 | 块（iSCSI/NVMe-oF）、文件（NFS，复用 Vastdata NFS 方案）、对象（S3） |
-| 硬件 | 通用 X86 服务器，ebox 方案（标准高密度机箱） |
-| 介质分层 | SCM SSD + QLC SSD、纯 TLC SSD，或 TLC SSD + HDD |
-| 软件架构 | DASE（Disaggregated Shared-Everything，解耦共享一切） |
+| 协议 | 块（iSCSI/NVMe-oF）、文件（NFS）、对象（S3） |
+| 软件架构 | DASE 骨架（VastData）× Bucket 元数据（WekaFS） |
+| 硬件 | 无状态 CNode + ebox 存储机箱，NVMe-oF 全互联 |
+| 主存储层 | TLC NVMe SSD：元数据与数据同池，容量动态分配 |
+| 分层存储 | 可选下沉到 QLC NVMe / HDD / 外部对象存储（S3） |
 | 规模 | 万亿（10¹²）级对象数量，单集群 1 EiB 容量 |
 | QoS | Metadata IOPS、Data IOPS、Data BW 三维限速 |
 | Quota | 租户/桶/卷级别容量与对象数配额 |
 
 ## 设计原则
 
-- ** disaggregated shared-everything**：计算与存储解耦，但所有存储节点共享全局命名空间与数据副本，元数据与数据分离。
-- **介质感知分层**：热数据落 SCM/TLC，温/冷数据下沉到 QLC/HDD，由放置引擎按访问频度自动迁移。
-- **水平无状态扩展**：元数据服务与数据服务均可线性扩展，无单点瓶颈。
-- **协议统一**：三种协议共享同一套底层对象寻址与副本管理，NFS/S3/iSCSI 仅作为访问前端。
+- **DASE（解耦共享一切）**：CNode 完全无状态，任意 CNode 可见任意 SSD；性能与容量独立扩展；failover 零数据迁移。
+- **WekaFS 风格元数据**：无专用元数据节点，元数据 Bucket 分布到**所有** TLC NVMe SSD；容量随使用量增长而非固定预留；支持 Metadata QoS。
+- **统一 TLC 主层**：元数据与数据共用 TLC NVMe 池，extent 级动态分配，水位仲裁。
+- **温度驱动分层**：冷数据下沉 QLC / HDD / 外部 S3（可任意组合），元数据永不下沉，保证命名空间操作延迟稳定。
+- **协议统一**：三种协议共享同一套元数据 Bucket 与数据服务，NFS/S3/iSCSI 仅作为访问前端。
 
 ## 仓库结构
 
 ```
 omnistor/
 ├── docs/
-│   ├── architecture/   # DASE 架构、硬件方案、集群拓扑
+│   ├── architecture/   # DASE、元数据(Bucket)、硬件、拓扑
 │   ├── storage/        # 块/文件/对象三种协议设计
-│   └── features/       # QoS、Quota、介质分层
+│   └── features/       # QoS、Quota、分层存储
 ├── api/                # 接口定义 (gRPC / REST / proto)
 ├── cmd/                # 各服务入口
 ├── pkg/                # 核心库
