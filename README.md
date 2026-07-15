@@ -13,7 +13,7 @@ OmniStor 是一个面向 EB 级规模的统一存储系统：核心架构采用 
 | 硬件 | 无状态 CNode + ebox 存储机箱，NVMe-oF 全互联 |
 | 主存储层 | TLC NVMe SSD：元数据与数据同池，容量动态分配 |
 | 分层存储 | 可选下沉到 QLC NVMe / HDD / 外部对象存储（S3） |
-| 规模 | 万亿（10¹²）级对象数量，单集群 1 EiB 容量 |
+| 规模 | 10 万亿（10¹³）级对象数量，单集群 10 EiB 容量 |
 | QoS | Metadata IOPS、Data IOPS、Data BW 三维限速 |
 | Quota | 租户/桶/卷级别容量与对象数配额 |
 
