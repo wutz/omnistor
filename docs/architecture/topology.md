@@ -40,18 +40,20 @@ Cluster (10 EiB, 10¹³ objects)
 │   ├── Metadata Buckets (共 ~10 万，活跃常驻/冷可休眠)
 │   └── Data services (纠删/放置/分层)
 │            │ NVMe-oF fabric（zone 内全互联）
-├── zone-01 .. zone-NN            ← 故障域分组
-│   └── SNode-xxx（x86 存储服务器: TLC NVMe 主层 + 可选 QLC/HDD）
+├── pool tlc-gen1 / tlc-gen2      ← 主层池（按硬件规格分池）
+│   └── SNode-xxx（x86 存储服务器, 池内同构）
+├── pool qlc-a / hdd-a / hdd-b    ← 容量层池（可选）
+│   └── SNode-xxx（超大池内再切 zone）
 ├── 外部对象存储 (S3, 冷数据主体)
-└── Global coordinator（Bucket 调度、放置决策、监控）
+└── Global coordinator（Bucket 调度、放置决策、池间均衡、监控）
 ```
 
-万级 SNode 规模下，纠删组与重建流量限制在 zone 内（见 [scaling.md](../scaling.md)），zone 间仅有放置决策与再平衡的控制流。
+纠删组与重建流量限制在池内（超大池限制在 zone 内，见 [pools.md](pools.md)、[scaling.md](../scaling.md)），池间仅有放置决策与再平衡的控制流与迁移流。
 
 ## 扩展性设计
 
 - **性能扩展**：加 CNode → 协调器把部分 Bucket 与前端负载调度过去，因状态在共享池，迁移即"换机运行"，秒级完成。
-- **容量扩展**：加 SNode → 新 SSD 纳入共享池，新 extent 自动落新盘；HDD/QLC 层同理。
+- **容量扩展**：加 SNode → 新 SSD 纳入所属池，新 extent 自动落新盘；新规格硬件独立成池，池间自动均衡（见 [pools.md](pools.md)）。
 - **归档扩展**：外部 S3 层容量近乎无限，本地只保留热/温数据与全量元数据。
 
 详见 [scaling.md](../scaling.md)。
