@@ -155,6 +155,14 @@ impl Cluster {
         Ok(u64::from_be_bytes(buf))
     }
 
+    /// 删除租户：密码学擦除 + 配额与 QoS 记账清理。
+    pub fn delete_tenant(&mut self, tenant: TenantId) -> Result<()> {
+        self.tenants.delete(tenant)?;
+        self.quotas.remove_tenant(tenant);
+        self.tenant_qos.remove(&tenant);
+        Ok(())
+    }
+
     /// QoS tick（时间推进，补充令牌）。
     pub fn tick(&mut self) {
         for q in self.tenant_qos.values_mut() {

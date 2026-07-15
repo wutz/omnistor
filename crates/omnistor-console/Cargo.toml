@@ -1,0 +1,20 @@
+[package]
+name = "omnistor-console"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+omnistor = { path = "../omnistor" }
+omnistor-core = { path = "../omnistor-core" }
+omnistor-qos = { path = "../omnistor-qos" }
+omnistor-quota = { path = "../omnistor-quota" }
+omnistor-tenant = { path = "../omnistor-tenant" }
+omnistor-placement = { path = "../omnistor-placement" }
+
+[[bin]]
+name = "omnistor-console"
+path = "src/main.rs"
+
+[lints]
+workspace = true

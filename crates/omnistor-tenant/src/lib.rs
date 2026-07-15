@@ -108,6 +108,13 @@ impl TenantRegistry {
     pub fn placement(&self, id: TenantId) -> Result<Placement> {
         Ok(self.get(id)?.placement)
     }
+
+    /// 枚举全部租户（集群管理员视图）。
+    pub fn list(&self) -> Vec<(TenantId, &TenantSpec)> {
+        let mut v: Vec<_> = self.tenants.iter().map(|(id, e)| (*id, &e.spec)).collect();
+        v.sort_by_key(|(id, _)| *id);
+        v
+    }
 }
 
 #[cfg(test)]

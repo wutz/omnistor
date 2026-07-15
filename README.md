@@ -44,7 +44,8 @@ omnistor/
 │   ├── omnistor-tenant/      # 租户生命周期、密钥、密码学擦除
 │   ├── omnistor-metadata/    # Bucket 分片、journal、租约围栏、extent 分配
 │   ├── omnistor-placement/   # 分池放置、池间均衡、温度分层
-│   └── omnistor/             # 顶层组装与端到端写路径
+│   ├── omnistor/             # 顶层组装与端到端写路径
+│   └── omnistor-console/     # 管理控台：REST API + Web 前端（集群/租户两视图）
 ├── api/                # 接口定义 (gRPC / REST / proto)
 ├── cmd/                # 各服务入口
 └── deploy/             # 部署编排 (裸金属 / k8s / compose)
@@ -59,6 +60,16 @@ cargo test --workspace      # 全部单元 + 集成测试
 cargo clippy --workspace    # lint
 cargo fmt --all --check     # 格式
 ```
+
+## 管理控台
+
+```sh
+cargo run -p omnistor-console            # http://127.0.0.1:8090，含演示数据
+cargo run -p omnistor-console -- 0.0.0.0:9000   # 自定义监听地址
+```
+
+- **集群管理员视图**：集群总览（TLC 元数据/数据 extent 占用、活跃 Bucket）、存储池水位、租户 CRUD（删除即密码学擦除）。
+- **租户管理员视图**：本租户用量与密钥代次、子配额（桶/卷/目录）自助设置、写入模拟——可直观观察 QoS 限流（429）、配额拒绝（507）与对象在 Bucket 上的散布。
 
 ## 状态
 

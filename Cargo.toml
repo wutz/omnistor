@@ -8,6 +8,7 @@ members = [
     "crates/omnistor-metadata",
     "crates/omnistor-placement",
     "crates/omnistor",
+    "crates/omnistor-console",
 ]
 
 [workspace.package]

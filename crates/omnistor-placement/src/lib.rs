@@ -74,6 +74,13 @@ impl PlacementEngine {
         self.pools.get(&id)
     }
 
+    /// 枚举全部池（监控/控台视图）。
+    pub fn pools(&self) -> Vec<&PoolState> {
+        let mut v: Vec<_> = self.pools.values().collect();
+        v.sort_by_key(|p| p.id);
+        v
+    }
+
     /// 写入选池：在指定 media class 的候选池中选评分最高者。
     ///
     /// - 共享租户只用共享池；
