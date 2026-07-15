@@ -14,7 +14,7 @@ OmniStor 内部接口定义层。
 | --- | --- |
 | Metadata API | 命名空间、对象映射、配额、QoS 配置 |
 | Data API | 对象读写、副本/纠删、分层迁移 |
-| Admin API | 集群管理、ebox 编排、监控指标 |
+| Admin API | 集群管理、节点编排、监控指标 |
 | Access API | NFS/S3/iSCSI 前端对接底层 |
 
 > 🚧 待定义：待架构设计稳定后填充 proto / openapi。

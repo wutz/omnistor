@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OmniStor 管理控台</title>
+<style>
+  :root {
+    --bg: #0f1420; --panel: #171e2e; --panel2: #1d2638; --line: #2a3550;
+    --text: #dbe4f5; --dim: #8494b3; --accent: #4f8cff; --ok: #3fb96f;
+    --warn: #e0a63c; --err: #e0564f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.5 "SF Pro", "PingFang SC", "Microsoft YaHei", sans-serif; }
+  header { display: flex; align-items: center; gap: 16px; padding: 14px 24px;
+           background: var(--panel); border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 17px; margin: 0; letter-spacing: .5px; }
+  header h1 span { color: var(--accent); }
+  .role-switch { margin-left: auto; display: flex; gap: 4px; background: var(--panel2);
+                 border: 1px solid var(--line); border-radius: 8px; padding: 3px; }
+  .role-switch button { border: 0; background: transparent; color: var(--dim); padding: 5px 14px;
+                        border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .role-switch button.on { background: var(--accent); color: #fff; }
+  main { padding: 20px 24px; max-width: 1100px; margin: 0 auto; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .card .k { color: var(--dim); font-size: 12px; }
+  .card .v { font-size: 22px; font-weight: 600; margin-top: 2px; }
+  section { margin-top: 24px; }
+  section > h2 { font-size: 14px; color: var(--dim); text-transform: uppercase;
+                 letter-spacing: 1px; margin: 0 0 10px; }
+  table { width: 100%; border-collapse: collapse; background: var(--panel);
+          border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line); }
+  th { color: var(--dim); font-weight: 500; font-size: 12px; background: var(--panel2); }
+  tr:last-child td { border-bottom: 0; }
+  .bar { height: 8px; background: var(--panel2); border-radius: 4px; min-width: 120px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--ok); border-radius: 4px; }
+  .bar i.warn { background: var(--warn); } .bar i.err { background: var(--err); }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px;
+           background: var(--panel2); border: 1px solid var(--line); color: var(--dim); }
+  form.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: end;
+             background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  form.row label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--dim); }
+  input, select { background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+                  border-radius: 6px; padding: 6px 9px; font-size: 13px; width: 130px; }
+  button.act { background: var(--accent); color: #fff; border: 0; border-radius: 6px;
+               padding: 7px 16px; cursor: pointer; font-size: 13px; }
+  button.danger { background: transparent; color: var(--err); border: 1px solid var(--err);
+                  border-radius: 6px; padding: 3px 10px; cursor: pointer; font-size: 12px; }
+  #log { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+         padding: 10px 14px; font: 12px/1.7 ui-monospace, monospace; max-height: 180px;
+         overflow-y: auto; white-space: pre-wrap; }
+  #log .ok { color: var(--ok); } #log .err { color: var(--err); } #log .warn { color: var(--warn); }
+  .hide { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Omni<span>Stor</span> 管理控台</h1>
+  <span class="badge" id="clock">–</span>
+  <div class="role-switch">
+    <button id="btn-admin" class="on">集群管理员</button>
+    <button id="btn-tenant">租户管理员</button>
+  </div>
+</header>
+<main>
+  <!-- 集群总览（两种角色都可见，租户视图下仅显示概要） -->
+  <section>
+    <h2>集群总览</h2>
+    <div class="cards" id="summary"></div>
+  </section>
+
+  <!-- 集群管理员视图 -->
+  <div id="view-admin">
+    <section>
+      <h2>存储池（分池 · 池即故障域）</h2>
+      <table>
+        <thead><tr><th>池</th><th>介质</th><th>水位</th><th>已用 / 容量 (extents)</th><th>专属</th></tr></thead>
+        <tbody id="pools"></tbody>
+      </table>
+      <form class="row" id="form-pool" style="margin-top:10px">
+        <label>池 ID<input name="id" type="number" required min="1"></label>
+        <label>介质<select name="media"><option value="tlc">TLC NVMe</option>
+          <option value="qlc">QLC NVMe</option><option value="hdd">HDD</option></select></label>
+        <label>容量 (extents)<input name="capacity" type="number" required min="1" value="100000"></label>
+        <button class="act">新增池</button>
+      </form>
+    </section>
+    <section>
+      <h2>租户</h2>
+      <table>
+        <thead><tr><th>ID</th><th>名称</th><th>放置</th><th>用量</th><th>对象数</th><th></th></tr></thead>
+        <tbody id="tenants"></tbody>
+      </table>
+      <form class="row" id="form-tenant" style="margin-top:10px">
+        <label>名称<input name="name" required placeholder="acme"></label>
+        <label>容量配额 (bytes)<input name="capacity_bytes" type="number" placeholder="不限"></label>
+        <label>对象数配额<input name="object_count" type="number" placeholder="不限"></label>
+        <label>Metadata IOPS<input name="metadata_iops" type="number" value="50000"></label>
+        <label>Data IOPS<input name="data_iops" type="number" value="100000"></label>
+        <label>专属池 ID<input name="dedicated_pool" type="number" placeholder="共享"></label>
+        <button class="act">创建租户</button>
+      </form>
+    </section>
+  </div>
+
+  <!-- 租户管理员视图 -->
+  <div id="view-tenant" class="hide">
+    <section>
+      <h2>我的租户</h2>
+      <form class="row">
+        <label>选择租户<select id="tenant-select"></select></label>
+      </form>
+      <div class="cards" id="tenant-cards" style="margin-top:10px"></div>
+    </section>
+    <section>
+      <h2>子配额（桶 / 卷 / 目录）</h2>
+      <form class="row" id="form-scope-quota">
+        <label>Scope<input name="scope" required placeholder="photos"></label>
+        <label>容量 (bytes)<input name="capacity_bytes" type="number" placeholder="不限"></label>
+        <label>对象数<input name="object_count" type="number" placeholder="不限"></label>
+        <button class="act">设置子配额</button>
+      </form>
+    </section>
+    <section>
+      <h2>写入模拟（观察 QoS / Quota 行为）</h2>
+      <form class="row" id="form-write">
+        <label>对象数<input name="count" type="number" value="100" min="1"></label>
+        <label>单对象大小 (bytes)<input name="size_bytes" type="number" value="4096"></label>
+        <label>Scope<input name="scope" value="default"></label>
+        <button class="act">写入</button>
+        <button class="act" type="button" id="btn-tick" style="background:var(--panel2);border:1px solid var(--line)">tick ×10（补令牌）</button>
+      </form>
+    </section>
+  </div>
+
+  <section>
+    <h2>操作日志</h2>
+    <div id="log"></div>
+  </section>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const api = async (method, path, body) => {
+  const r = await fetch(path, {
+    method,
+    headers: body ? {'Content-Type': 'application/json'} : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const j = await r.json().catch(() => ({}));
+  return {status: r.status, body: j};
+};
+const log = (msg, cls) => {
+  const el = $('#log');
+  const line = document.createElement('div');
+  if (cls) line.className = cls;
+  line.textContent = `${new Date().toLocaleTimeString()}  ${msg}`;
+  el.prepend(line);
+};
+const fmtBytes = n => {
+  if (n == null) return '–';
+  const u = ['B','KiB','MiB','GiB','TiB','PiB'];
+  let i = 0; while (n >= 1024 && i < u.length-1) { n /= 1024; i++; }
+  return `${n < 10 ? n.toFixed(1) : Math.round(n)} ${u[i]}`;
+};
+
+// ---- 角色切换 ----
+let role = 'admin';
+const setRole = r => {
+  role = r;
+  $('#btn-admin').classList.toggle('on', r === 'admin');
+  $('#btn-tenant').classList.toggle('on', r === 'tenant');
+  $('#view-admin').classList.toggle('hide', r !== 'admin');
+  $('#view-tenant').classList.toggle('hide', r !== 'tenant');
+  refresh();
+};
+$('#btn-admin').onclick = () => setRole('admin');
+$('#btn-tenant').onclick = () => setRole('tenant');
+
+// ---- 数据刷新 ----
+async function refresh() {
+  const {body: s} = await api('GET', '/api/cluster');
+  $('#summary').innerHTML = [
+    ['租户数', s.tenants], ['存储池', s.pools],
+    ['TLC 元数据 extents', s.tlc_metadata_used], ['TLC 数据 extents', s.tlc_data_used],
+    ['TLC 空闲 extents', s.tlc_free_extents], ['活跃 Bucket', s.active_buckets],
+  ].map(([k, v]) => `<div class="card"><div class="k">${k}</div><div class="v">${v ?? '–'}</div></div>`).join('');
+
+  const {body: pools} = await api('GET', '/api/pools');
+  $('#pools').innerHTML = pools.map(p => {
+    const pct = p.capacity ? Math.round(p.used / p.capacity * 100) : 0;
+    const cls = pct > 90 ? 'err' : pct > 70 ? 'warn' : '';
+    return `<tr><td>pool-${p.id}</td><td><span class="badge">${p.media}</span></td>
+      <td><div class="bar"><i class="${cls}" style="width:${pct}%"></i></div> ${pct}%</td>
+      <td>${p.used.toLocaleString()} / ${p.capacity.toLocaleString()}</td>
+      <td>${p.dedicated_to != null ? 'tenant-' + p.dedicated_to : '共享'}</td></tr>`;
+  }).join('');
+
+  const {body: tenants} = await api('GET', '/api/tenants');
+  $('#tenants').innerHTML = tenants.map(t =>
+    `<tr><td>${t.id}</td><td>${t.name}</td><td><span class="badge">${t.placement}</span></td>
+     <td>${fmtBytes(t.used_bytes)}</td><td>${t.objects.toLocaleString()}</td>
+     <td><button class="danger" onclick="delTenant(${t.id}, '${t.name}')">删除</button></td></tr>`
+  ).join('');
+
+  const sel = $('#tenant-select');
+  const cur = sel.value;
+  sel.innerHTML = tenants.map(t => `<option value="${t.id}">${t.name} (id=${t.id})</option>`).join('');
+  if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+  refreshTenantCards();
+}
+
+async function refreshTenantCards() {
+  const id = $('#tenant-select').value;
+  if (!id) { $('#tenant-cards').innerHTML = ''; return; }
+  const {status, body: t} = await api('GET', `/api/tenants/${id}`);
+  if (status !== 200) return;
+  $('#tenant-cards').innerHTML = [
+    ['已用容量', fmtBytes(t.used_bytes)], ['对象数', t.objects?.toLocaleString()],
+    ['密钥', t.key ? `${t.key.key_id} · gen ${t.key.generation}` : '已销毁'],
+  ].map(([k, v]) => `<div class="card"><div class="k">${k}</div><div class="v" style="font-size:16px">${v}</div></div>`).join('');
+}
+$('#tenant-select').onchange = refreshTenantCards;
+
+// ---- 集群管理员操作 ----
+const formData = f => Object.fromEntries([...new FormData(f)].filter(([,v]) => v !== '')
+  .map(([k, v]) => [k, /^\d+$/.test(v) ? Number(v) : v]));
+
+$('#form-pool').onsubmit = async e => {
+  e.preventDefault();
+  const {status, body} = await api('POST', '/api/pools', formData(e.target));
+  log(status === 200 ? `新增池 pool-${body.id}` : `新增池失败: ${body.error}`, status === 200 ? 'ok' : 'err');
+  refresh();
+};
+$('#form-tenant').onsubmit = async e => {
+  e.preventDefault();
+  const {status, body} = await api('POST', '/api/tenants', formData(e.target));
+  log(status === 201 ? `创建租户 ${body.name} (id=${body.id})，已签发 KEK`
+                     : `创建租户失败: ${body.error}`, status === 201 ? 'ok' : 'err');
+  if (status === 201) e.target.reset();
+  refresh();
+};
+window.delTenant = async (id, name) => {
+  if (!confirm(`删除租户 ${name}？将销毁其 KEK（密码学擦除，不可恢复）`)) return;
+  const {status, body} = await api('DELETE', `/api/tenants/${id}`);
+  log(status === 200 ? `租户 ${name} 已删除（KEK 已销毁）` : `删除失败: ${body.error}`,
+      status === 200 ? 'warn' : 'err');
+  refresh();
+};
+
+// ---- 租户管理员操作 ----
+$('#form-scope-quota').onsubmit = async e => {
+  e.preventDefault();
+  const id = $('#tenant-select').value;
+  const {status, body} = await api('POST', `/api/tenants/${id}/quota`, formData(e.target));
+  log(status === 200 ? `子配额已设置: ${body.scope}` : `设置失败: ${body.error}`,
+      status === 200 ? 'ok' : 'err');
+};
+$('#form-write').onsubmit = async e => {
+  e.preventDefault();
+  const id = $('#tenant-select').value;
+  const {status, body} = await api('POST', `/api/tenants/${id}/objects`, formData(e.target));
+  if (status !== 200) { log(`写入失败: ${body.error}`, 'err'); return; }
+  const parts = [`成功 ${body.ok}/${body.requested}`];
+  if (body.throttled) parts.push(`QoS 限流 ${body.throttled}`);
+  if (body.quota_exceeded) parts.push(`配额拒绝 ${body.quota_exceeded}`);
+  if (body.no_space) parts.push(`容量不足 ${body.no_space}`);
+  parts.push(`活跃 Bucket ${body.active_buckets}`);
+  log(parts.join(' · '), body.ok === body.requested ? 'ok' : 'warn');
+  if (body.first_error) log(`首个错误: ${body.first_error}`, 'warn');
+  refresh();
+};
+$('#btn-tick').onclick = async () => {
+  await api('POST', '/api/tick?n=10');
+  log('时间推进 ×10，QoS 令牌已补充', 'ok');
+};
+
+setInterval(() => { $('#clock').textContent = new Date().toLocaleString(); }, 1000);
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

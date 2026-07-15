@@ -19,3 +19,7 @@ vendor/
 # Local config / state
 *.local
 .env
+
+# Rust
+target/
+Cargo.lock
