@@ -30,7 +30,7 @@ OmniStor 采用 **DASE（Disaggregated Shared-Everything）** 架构，参考 Va
 | 需求 | 架构支撑 |
 | --- | --- |
 | 块/文件/对象统一 | Access Layer 三前端共享 Metadata + Data 层 |
-| SCM+QLC / TLC+HDD | Data Layer 介质感知放置引擎 |
+| SCM+QLC / 纯 TLC / TLC+HDD | Data Layer 介质感知放置引擎 |
 | 万亿对象 / 1 EiB | Metadata 层分片 + Data 层横向扩展，见 [scaling.md](../scaling.md) |
 | QoS | Access 层入口限速 + Metadata/Data 层配额令牌桶，见 [features/qos.md](../features/qos.md) |
 | Quota | Metadata 层统计与配额校验，见 [features/quota.md](../features/quota.md) |
