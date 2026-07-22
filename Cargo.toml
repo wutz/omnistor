@@ -7,6 +7,8 @@ members = [
     "crates/omnistor-tenant",
     "crates/omnistor-metadata",
     "crates/omnistor-placement",
+    "crates/omnistor-protection",
+    "crates/omnistor-snapshot",
     "crates/omnistor",
     "crates/omnistor-console",
 ]

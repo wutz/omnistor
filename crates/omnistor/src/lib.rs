@@ -1,26 +1,33 @@
-//! omnistor: 顶层组装——把租户/QoS/Quota/元数据 Bucket/放置引擎
-//! 串成一条可验证的写路径（设计原型，无 I/O）。
+//! omnistor: 顶层组装——把租户/QoS/Quota/元数据 Bucket/放置引擎/
+//! 纠删保护/快照串成一条可验证的写路径（设计原型，无 I/O）。
 //!
 //! 写路径（docs/architecture/dase.md）：
 //! 认证租户 → QoS 令牌 → Quota 校验 → 路由到元数据 Bucket →
-//! 放置引擎选池 → TLC extent 分配 → 提交元数据。
+//! 放置引擎选池 → TLC extent 分配 → 纠删条带放置（跨故障域）→
+//! 提交元数据 + 版本化命名空间（快照世代）。
 
 use std::collections::HashMap;
 
-use omnistor_core::{BucketId, CNodeId, Error, MediaClass, MetaKey, Result, TenantId};
+use omnistor_core::{
+    BucketId, CNodeId, Error, ExtentId, MediaClass, MetaKey, PoolId, Result, SNodeId, TenantId,
+};
 use omnistor_metadata::{
     BucketProcess, BucketRouter, ExtentAllocator, PoolWatermarks, Purpose, SharedState,
 };
 use omnistor_placement::{PlacementEngine, PoolState};
+use omnistor_protection::{ProtectionScheme, StripeManager};
 use omnistor_qos::{Dimension, Priority, QosEntity, QosSpec};
 use omnistor_quota::{QuotaLimit, QuotaManager};
+use omnistor_snapshot::{HeadId, SnapshotId, VersionedNamespace};
 use omnistor_tenant::{Placement, TenantRegistry, TenantSpec};
 
 pub use omnistor_core as core;
 pub use omnistor_metadata as metadata;
 pub use omnistor_placement as placement;
+pub use omnistor_protection as protection;
 pub use omnistor_qos as qos;
 pub use omnistor_quota as quota;
+pub use omnistor_snapshot as snapshot;
 pub use omnistor_tenant as tenant;
 
 /// 单进程集群原型：真实系统中这些组件分布在 CNode 上，
@@ -37,6 +44,10 @@ pub struct Cluster {
     buckets: HashMap<BucketId, BucketProcess>,
     /// 每租户 QoS（简化：单实体桶；生产为 ShardedQos 分布到各执行点）。
     tenant_qos: HashMap<TenantId, QosEntity>,
+    /// 每池的纠删条带管理器（注册了 SNode 故障域的池才做条带放置）。
+    stripes: HashMap<PoolId, StripeManager>,
+    /// 每租户的版本化命名空间（快照/克隆世代）。
+    namespaces: HashMap<TenantId, VersionedNamespace>,
 }
 
 impl Cluster {
@@ -50,11 +61,30 @@ impl Cluster {
             shared: HashMap::new(),
             buckets: HashMap::new(),
             tenant_qos: HashMap::new(),
+            stripes: HashMap::new(),
+            namespaces: HashMap::new(),
         }
     }
 
     pub fn add_pool(&mut self, state: PoolState) {
         self.placement.upsert_pool(state);
+    }
+
+    /// 为池启用纠删保护并注册其故障域（SNode）。
+    /// 条带严格在池内构建（docs/architecture/data-protection.md）。
+    pub fn protect_pool(
+        &mut self,
+        pool: PoolId,
+        scheme: ProtectionScheme,
+        snodes: impl IntoIterator<Item = SNodeId>,
+    ) {
+        let m = self
+            .stripes
+            .entry(pool)
+            .or_insert_with(|| StripeManager::new(pool, scheme));
+        for s in snodes {
+            m.add_domain(s);
+        }
     }
 
     /// 建租户：注册 + 配额 + QoS 一步到位。
@@ -120,12 +150,24 @@ impl Cluster {
             }
         };
         // 5. TLC extent 分配（数据用途，受水位仲裁）
-        if let Err(e) = self.tlc_extents.allocate(Purpose::Data) {
-            self.quotas.release(tenant, scope, size_bytes, 1);
-            return Err(e);
+        let (extent, _pressure) = match self.tlc_extents.allocate(Purpose::Data) {
+            Ok(v) => v,
+            Err(e) => {
+                self.quotas.release(tenant, scope, size_bytes, 1);
+                return Err(e);
+            }
+        };
+        // 6. 纠删条带放置：启用保护的池，数据以 D+P 条带跨故障域落盘
+        //    （写新位置——条带一经写定不原地改）。
+        if let Some(m) = self.stripes.get_mut(&pool) {
+            if let Err(e) = m.place_stripe() {
+                self.tlc_extents.release(Purpose::Data);
+                self.quotas.release(tenant, scope, size_bytes, 1);
+                return Err(e);
+            }
         }
         self.placement.commit(pool, 1)?;
-        // 6. 元数据落 Bucket（journal 先行）
+        // 7. 元数据落 Bucket（journal 先行）+ 版本化命名空间（快照世代）
         let meta_key = MetaKey::new(tenant, key);
         let bucket = self.bucket_for(&meta_key);
         // 元数据自身占用（extent 按需分配，跟随使用量增长）
@@ -134,7 +176,10 @@ impl Cluster {
         self.buckets
             .get_mut(&bucket)
             .ok_or(Error::BucketUnavailable(bucket))?
-            .put(shared, meta_key, size_bytes.to_be_bytes().to_vec())
+            .put(shared, meta_key, size_bytes.to_be_bytes().to_vec())?;
+        let ns = self.namespaces.entry(tenant).or_default();
+        let head = ns.live_head();
+        ns.put(head, key, extent)
     }
 
     /// 读元数据（lookup）。
@@ -160,7 +205,73 @@ impl Cluster {
         self.tenants.delete(tenant)?;
         self.quotas.remove_tenant(tenant);
         self.tenant_qos.remove(&tenant);
+        self.namespaces.remove(&tenant);
         Ok(())
+    }
+
+    // ---- 快照与克隆（docs/features/snapshots.md）----
+
+    fn namespace_mut(&mut self, tenant: TenantId) -> Result<&mut VersionedNamespace> {
+        self.tenants.key(tenant)?;
+        Ok(self.namespaces.entry(tenant).or_default())
+    }
+
+    /// 创建快照：冻结租户命名空间当前世代——瞬时元数据操作。
+    pub fn create_snapshot(&mut self, tenant: TenantId, name: &str) -> Result<SnapshotId> {
+        let ns = self.namespace_mut(tenant)?;
+        let head = ns.live_head();
+        ns.create_snapshot(head, name)
+    }
+
+    /// 快照视图读对象 → 数据 extent。
+    pub fn stat_at(&mut self, tenant: TenantId, snap: SnapshotId, key: &str) -> Result<ExtentId> {
+        let q = self
+            .tenant_qos
+            .get_mut(&tenant)
+            .ok_or(Error::UnknownTenant(tenant))?;
+        q.acquire(Dimension::MetadataIops, 1, Priority::Foreground)?;
+        self.namespace_mut(tenant)?
+            .get_at(snap, key.as_bytes())?
+            .ok_or_else(|| Error::Invalid(format!("not found in snapshot: {key}")))
+    }
+
+    /// 从快照派生可写克隆（秒级拉起测试环境）。
+    pub fn clone_snapshot(&mut self, tenant: TenantId, snap: SnapshotId) -> Result<HeadId> {
+        self.namespace_mut(tenant)?.clone_from(snap)
+    }
+
+    /// 删除快照：不再被任何视图引用的 extent 归还分配器。
+    pub fn delete_snapshot(&mut self, tenant: TenantId, snap: SnapshotId) -> Result<usize> {
+        let freed = self.namespace_mut(tenant)?.delete_snapshot(snap)?;
+        for _ in &freed {
+            self.tlc_extents.release(Purpose::Data);
+        }
+        Ok(freed.len())
+    }
+
+    // ---- 故障与重建（docs/architecture/data-protection.md）----
+
+    /// SNode 故障：标记所有启用保护的池中该故障域，返回受影响条带数。
+    pub fn fail_snode(&mut self, snode: SNodeId) -> usize {
+        self.stripes
+            .values_mut()
+            .map(|m| m.fail_domain(snode))
+            .sum()
+    }
+
+    /// 并行重建：为每个受影响的池规划重建任务并立即执行
+    /// （原型内联执行；真实系统由各 CNode 领取任务，走后台 QoS 令牌）。
+    /// 返回重建的条带数。
+    pub fn rebuild(&mut self, cnodes: &[CNodeId]) -> Result<usize> {
+        let mut rebuilt = 0;
+        for m in self.stripes.values_mut() {
+            let tasks = m.plan_rebuild(cnodes)?;
+            for t in &tasks {
+                m.apply_rebuild(t)?;
+            }
+            rebuilt += tasks.len();
+        }
+        Ok(rebuilt)
     }
 
     /// QoS tick（时间推进，补充令牌）。
@@ -352,6 +463,84 @@ mod tests {
             Error::UnknownTenant(t)
         );
         assert_eq!(c.stat(t, "x").unwrap_err(), Error::UnknownTenant(t));
+    }
+
+    #[test]
+    fn snapshot_clone_and_reclaim_end_to_end() {
+        let mut c = cluster();
+        let t = c
+            .create_tenant(
+                "acme",
+                QuotaLimit::default(),
+                default_qos(),
+                Placement::Shared,
+            )
+            .unwrap();
+        c.put_object(t, "s", "doc", 100).unwrap();
+        let snap = c.create_snapshot(t, "before-change").unwrap();
+        let old_extent = c.stat_at(t, snap, "doc").unwrap();
+        // 覆盖写：live 变化，快照视图冻结
+        c.put_object(t, "s", "doc", 200).unwrap();
+        assert_eq!(c.stat(t, "doc").unwrap(), 200);
+        assert_eq!(c.stat_at(t, snap, "doc").unwrap(), old_extent);
+        // 克隆共享分叉点前的数据（克隆视图使旧 extent 保持被引用）
+        let _clone = c.clone_snapshot(t, snap).unwrap();
+        // 删除快照：旧 extent 仍被克隆引用 → 不回收
+        assert_eq!(c.delete_snapshot(t, snap).unwrap(), 0);
+    }
+
+    #[test]
+    fn snapshot_delete_frees_extents_back_to_allocator() {
+        let mut c = cluster();
+        let t = c
+            .create_tenant(
+                "acme",
+                QuotaLimit::default(),
+                default_qos(),
+                Placement::Shared,
+            )
+            .unwrap();
+        c.put_object(t, "s", "doc", 100).unwrap();
+        let snap = c.create_snapshot(t, "s1").unwrap();
+        c.put_object(t, "s", "doc", 200).unwrap(); // 旧 extent 只被快照引用
+        let free_before = c.tlc_extents.free_extents();
+        assert_eq!(c.delete_snapshot(t, snap).unwrap(), 1);
+        assert_eq!(c.tlc_extents.free_extents(), free_before + 1);
+    }
+
+    #[test]
+    fn snode_failure_rebuild_restores_protection() {
+        let mut c = cluster();
+        // 池 1 启用 8+2 纠删，12 个 SNode 故障域
+        c.protect_pool(
+            PoolId(1),
+            protection::ProtectionScheme::new(8, 2).unwrap(),
+            (0..12).map(SNodeId),
+        );
+        // 池 2 让给放置引擎均衡也没关系——只有池 1 做条带记账
+        let t = c
+            .create_tenant(
+                "acme",
+                QuotaLimit::default(),
+                default_qos(),
+                Placement::Shared,
+            )
+            .unwrap();
+        for i in 0..50 {
+            c.put_object(t, "s", &format!("obj/{i}"), 1).unwrap();
+            if i % 10 == 0 {
+                c.tick();
+            }
+        }
+        // SNode 故障：受影响条带来自索引（不扫全量）
+        let affected = c.fail_snode(SNodeId(0));
+        assert!(affected > 0);
+        // 全体 CNode 并行重建后恢复保护
+        let cnodes: Vec<CNodeId> = (0..4).map(CNodeId).collect();
+        let rebuilt = c.rebuild(&cnodes).unwrap();
+        assert_eq!(rebuilt, affected);
+        // 数据全程可读（原型读元数据；降级读语义见 protection crate 测试）
+        assert_eq!(c.stat(t, "obj/0").unwrap(), 1);
     }
 
     #[test]

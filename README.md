@@ -26,6 +26,8 @@ OmniStor 是一个面向 EB 级规模的统一存储系统：核心架构采用 
 - **统一 TLC 主层**：元数据与数据共用 TLC NVMe 池，extent 级动态分配，水位仲裁。
 - **温度驱动分层**：冷数据下沉 QLC / HDD / 外部 S3（可任意组合），元数据永不下沉，保证命名空间操作延迟稳定。
 - **硬件分池**：同集群混用不同规格/代际硬件，池内同构纠删、池间加权均衡，故障与重建限制在池内。
+- **分布式纠删 + 并行重建**：D+P 条带跨故障域、写新位置无读-改-写；重建只针对受影响条带，由全体 CNode 并行分担——集群越大重建越快。
+- **元数据级快照**：COW 快照瞬时创建、与数据量无关；可写克隆秒级派生；快照可增量导出到对象存储（snap-to-object）。
 - **原生多租户**：租户是命名空间、认证、QoS/Quota、加密密钥的第一级边界，一套集群切分为多个逻辑独立的存储服务。
 - **协议统一**：三种协议共享同一套元数据 Bucket 与数据服务，NFS/S3/iSCSI 仅作为访问前端。
 
@@ -44,6 +46,8 @@ omnistor/
 │   ├── omnistor-tenant/      # 租户生命周期、密钥、密码学擦除
 │   ├── omnistor-metadata/    # Bucket 分片、journal、租约围栏、extent 分配
 │   ├── omnistor-placement/   # 分池放置、池间均衡、温度分层
+│   ├── omnistor-protection/  # D+P 纠删：条带放置、降级读、并行重建
+│   ├── omnistor-snapshot/    # 元数据 COW 快照、可写克隆、snap-to-object
 │   ├── omnistor/             # 顶层组装与端到端写路径
 │   └── omnistor-console/     # 管理控台：REST API + Web 前端（集群/租户两视图）
 ├── api/                # 接口定义 (gRPC / REST / proto)
@@ -73,4 +77,5 @@ cargo run -p omnistor-console -- 0.0.0.0:9000   # 自定义监听地址
 ## 状态
 
 🚧 设计 + 原型阶段 — 架构文档齐备；`crates/` 内为核心机制的 Rust 原型实现
-（Bucket 元数据、QoS/Quota、租户、分池放置），单机内存模型，尚无网络与持久化 I/O。
+（Bucket 元数据、QoS/Quota、租户、分池放置、D+P 纠删保护、COW 快照/克隆），
+单机内存模型，尚无网络与持久化 I/O。
