@@ -11,6 +11,8 @@ omnistor-quota = { path = "../omnistor-quota" }
 omnistor-tenant = { path = "../omnistor-tenant" }
 omnistor-metadata = { path = "../omnistor-metadata" }
 omnistor-placement = { path = "../omnistor-placement" }
+omnistor-protection = { path = "../omnistor-protection" }
+omnistor-snapshot = { path = "../omnistor-snapshot" }
 
 [lints]
 workspace = true
